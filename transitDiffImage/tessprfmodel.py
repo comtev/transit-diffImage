@@ -260,9 +260,13 @@ class tessPRF(object):
             for j in range(len(colPrfAtArray)):
                 prffile = prfFileStub + "-row" + "{:04d}".format(rowPrfAtArray[i]) + "-col" + "{:04d}".format(colPrfAtArray[j]) + ".fits"
 #                print(prffile)
-                prfn[i], crval1p[i], crval2p[i], cdelt1p[i], cdelt2p[i] = self._read_prf_calibration_file(prffile)
+                # one slot per grid position (row-major); indexing by i alone kept only the
+                # last column read (2092) for each row
+                k = i * len(colPrfAtArray) + j
+                prfn[k], crval1p[k], crval2p[k], cdelt1p[k], cdelt2p[k] = self._read_prf_calibration_file(prffile)
 
-        prfn = np.array(prfn, dtype=object)
+        # all 25 images have the same shape, so this is a (25, ny, nx) array
+        prfn = np.array(prfn, dtype='float32')
         PRFcol = np.arange(0.5, np.shape(prfn[0])[1] + 0.5)
         PRFrow = np.arange(0.5, np.shape(prfn[0])[0] + 0.5)
         PRFcol = (PRFcol - np.size(PRFcol) / 2) * cdelt1p[0]
