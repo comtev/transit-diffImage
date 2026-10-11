@@ -192,7 +192,6 @@ class tessPRF(object):
 
     def _prepare_prf(self):
         n_hdu = 25
-        min_prf_weight = 1e-6
         # determine suitable PRF calibration file
 #        print([self.sector, self.camera, self.ccd])
 #
@@ -272,18 +271,25 @@ class tessPRF(object):
         PRFcol = (PRFcol - np.size(PRFcol) / 2) * cdelt1p[0]
         PRFrow = (PRFrow - np.size(PRFrow) / 2) * cdelt2p[0]
 
-        # interpolate the calibrated PRF shape to the target position
+        # interpolate the calibrated PRF shape to the target position: bilinear
+        # interpolation between the four grid PRFs around it (positions outside
+        # the grid are clipped to its edge). Inverse-distance weighting over all
+        # 25 PRFs gave the four nearest only about 40 to 55 per cent of the
+        # weight away from a grid point, and fitted real images less well.
         rowdim, coldim = self.shape[0], self.shape[1]
-        prf = np.zeros(np.shape(prfn[0]), dtype='float32')
         ref_column = self.column + .5 * coldim
         ref_row = self.row + .5 * rowdim
 
-        for i in range(n_hdu):
-            prf_weight = math.sqrt((ref_column - crval1p[i]) ** 2
-                                   + (ref_row - crval2p[i]) ** 2)
-            if prf_weight < min_prf_weight:
-                prf_weight = min_prf_weight
-            prf += prfn[i] / prf_weight
+        nCol = len(colPrfAtArray)
+        c = min(max(ref_column, colPrfAtArray[0]), colPrfAtArray[-1])
+        r = min(max(ref_row, rowPrfAtArray[0]), rowPrfAtArray[-1])
+        i0 = min(max(int(np.searchsorted(rowPrfAtArray, r)) - 1, 0), len(rowPrfAtArray) - 2)
+        j0 = min(max(int(np.searchsorted(colPrfAtArray, c)) - 1, 0), nCol - 2)
+        fr = (r - rowPrfAtArray[i0]) / (rowPrfAtArray[i0 + 1] - rowPrfAtArray[i0])
+        fc = (c - colPrfAtArray[j0]) / (colPrfAtArray[j0 + 1] - colPrfAtArray[j0])
+        k00 = i0 * nCol + j0
+        prf = ((1 - fr) * (1 - fc) * prfn[k00] + (1 - fr) * fc * prfn[k00 + 1]
+               + fr * (1 - fc) * prfn[k00 + nCol] + fr * fc * prfn[k00 + nCol + 1])
 
         prf /= (np.nansum(prf) * cdelt1p[0] * cdelt2p[0])
 
